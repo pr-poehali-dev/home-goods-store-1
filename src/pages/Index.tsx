@@ -31,17 +31,7 @@ const Index = () => {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [promoCode, setPromoCode] = useState('');
   const [promoDiscount, setPromoDiscount] = useState(0);
-
-  const categories = [
-    { id: 'all', name: 'Все товары', icon: 'Grid3x3' },
-    { id: 'tools', name: 'Инструменты', icon: 'Wrench' },
-    { id: 'home', name: 'Для дома', icon: 'Home' },
-    { id: 'garden', name: 'Для сада', icon: 'TreePine' },
-    { id: 'repair', name: 'Ремонт', icon: 'Hammer' },
-    { id: 'plumbing', name: 'Сантехника', icon: 'Droplet' },
-  ];
-
-  const products: Product[] = [
+  const [products, setProducts] = useState<Product[]>([
     { id: 1, name: 'Набор отвёрток 12 шт', category: 'tools', price: 599, oldPrice: 799, discount: 25, image: '/placeholder.svg', inStock: true },
     { id: 2, name: 'Лампочка LED E27 10W', category: 'home', price: 149, image: '/placeholder.svg', inStock: true },
     { id: 3, name: 'Садовые ножницы', category: 'garden', price: 299, oldPrice: 399, discount: 25, image: '/placeholder.svg', inStock: true },
@@ -54,7 +44,18 @@ const Index = () => {
     { id: 10, name: 'Гибкая подводка 50см', category: 'plumbing', price: 149, image: '/placeholder.svg', inStock: true },
     { id: 11, name: 'Уровень строительный 60см', category: 'tools', price: 449, oldPrice: 599, discount: 25, image: '/placeholder.svg', inStock: true },
     { id: 12, name: 'Розетка двойная с заземлением', category: 'home', price: 119, image: '/placeholder.svg', inStock: true },
+  ]);
+
+  const categories = [
+    { id: 'all', name: 'Все товары', icon: 'Grid3x3' },
+    { id: 'tools', name: 'Инструменты', icon: 'Wrench' },
+    { id: 'home', name: 'Для дома', icon: 'Home' },
+    { id: 'garden', name: 'Для сада', icon: 'TreePine' },
+    { id: 'repair', name: 'Ремонт', icon: 'Hammer' },
+    { id: 'plumbing', name: 'Сантехника', icon: 'Droplet' },
   ];
+
+
 
   const promoCodes = {
     'SALE10': 10,
@@ -168,6 +169,51 @@ const Index = () => {
     toast.success('Заказ экспортирован в Excel!');
   };
 
+  const importFromExcel = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const data = new Uint8Array(event.target?.result as ArrayBuffer);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const jsonData = XLSX.utils.sheet_to_json(worksheet) as any[];
+
+        const importedProducts: Product[] = jsonData.map((row, index) => {
+          const categoryName = String(row['Категория'] || row['category'] || '').toLowerCase();
+          let categoryId = 'home';
+          
+          if (categoryName.includes('инструмент') || categoryName.includes('tools')) categoryId = 'tools';
+          else if (categoryName.includes('дом') || categoryName.includes('home')) categoryId = 'home';
+          else if (categoryName.includes('сад') || categoryName.includes('garden')) categoryId = 'garden';
+          else if (categoryName.includes('ремонт') || categoryName.includes('repair')) categoryId = 'repair';
+          else if (categoryName.includes('сантехник') || categoryName.includes('plumbing')) categoryId = 'plumbing';
+
+          return {
+            id: products.length + index + 1,
+            name: String(row['Название'] || row['name'] || 'Новый товар'),
+            category: categoryId,
+            price: Number(row['Цена'] || row['price'] || 0),
+            oldPrice: row['Старая цена'] || row['oldPrice'] ? Number(row['Старая цена'] || row['oldPrice']) : undefined,
+            discount: row['Скидка %'] || row['discount'] ? Number(row['Скидка %'] || row['discount']) : undefined,
+            image: '/placeholder.svg',
+            inStock: true
+          };
+        });
+
+        setProducts([...products, ...importedProducts]);
+        toast.success(`Загружено ${importedProducts.length} товаров из Excel!`);
+      } catch (error) {
+        toast.error('Ошибка при чтении файла. Проверьте формат Excel.');
+      }
+    };
+    reader.readAsArrayBuffer(file);
+    e.target.value = '';
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50">
       <header className="bg-white border-b sticky top-0 z-40 shadow-sm">
@@ -194,9 +240,24 @@ const Index = () => {
             </div>
 
             <div className="flex gap-2">
-              <Button variant="outline" size="lg" onClick={exportToExcel}>
-                <Icon name="FileSpreadsheet" size={20} />
+              <Button variant="outline" size="lg" onClick={exportToExcel} title="Экспорт каталога в Excel">
+                <Icon name="FileDown" size={20} />
               </Button>
+              
+              <label htmlFor="excel-upload">
+                <Button variant="outline" size="lg" asChild title="Загрузить товары из Excel">
+                  <span className="cursor-pointer">
+                    <Icon name="FileUp" size={20} />
+                  </span>
+                </Button>
+              </label>
+              <input
+                id="excel-upload"
+                type="file"
+                accept=".xlsx,.xls"
+                onChange={importFromExcel}
+                className="hidden"
+              />
               
               <Sheet>
                 <SheetTrigger asChild>
@@ -304,9 +365,9 @@ const Index = () => {
                     <p className="text-muted-foreground">Добавьте товары в корзину</p>
                   </div>
                 )}
-              </SheetContent>
-            </Sheet>
-          </div>
+                </SheetContent>
+              </Sheet>
+            </div>
         </div>
       </header>
 
