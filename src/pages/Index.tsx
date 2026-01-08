@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
 import Icon from '@/components/ui/icon';
 import { toast } from 'sonner';
+import * as XLSX from 'xlsx';
 
 interface Product {
   id: number;
@@ -107,6 +108,66 @@ const Index = () => {
   const totalDiscount = (cartTotal * promoDiscount) / 100;
   const finalTotal = cartTotal - totalDiscount;
 
+  const exportToExcel = () => {
+    const exportData = products.map(product => ({
+      'ID': product.id,
+      'Название': product.name,
+      'Категория': categories.find(c => c.id === product.category)?.name || product.category,
+      'Цена': product.price,
+      'Старая цена': product.oldPrice || '',
+      'Скидка %': product.discount || '',
+      'В наличии': product.inStock ? 'Да' : 'Нет'
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(exportData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Товары');
+    XLSX.writeFile(wb, 'каталог_товаров_1000_мелочей.xlsx');
+    toast.success('Каталог экспортирован в Excel!');
+  };
+
+  const exportCartToExcel = () => {
+    if (cart.length === 0) {
+      toast.error('Корзина пуста');
+      return;
+    }
+
+    const cartData = cart.map(item => ({
+      'Название': item.name,
+      'Цена за шт.': item.price,
+      'Количество': item.quantity,
+      'Сумма': item.price * item.quantity
+    }));
+
+    cartData.push({
+      'Название': '',
+      'Цена за шт.': '',
+      'Количество': 'ИТОГО:',
+      'Сумма': cartTotal
+    } as any);
+
+    if (promoDiscount > 0) {
+      cartData.push({
+        'Название': '',
+        'Цена за шт.': '',
+        'Количество': `Скидка ${promoDiscount}%:`,
+        'Сумма': -totalDiscount
+      } as any);
+      cartData.push({
+        'Название': '',
+        'Цена за шт.': '',
+        'Количество': 'К ОПЛАТЕ:',
+        'Сумма': finalTotal
+      } as any);
+    }
+
+    const ws = XLSX.utils.json_to_sheet(cartData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Заказ');
+    XLSX.writeFile(wb, `заказ_${new Date().toLocaleDateString('ru-RU')}.xlsx`);
+    toast.success('Заказ экспортирован в Excel!');
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50">
       <header className="bg-white border-b sticky top-0 z-40 shadow-sm">
@@ -132,18 +193,23 @@ const Index = () => {
               </div>
             </div>
 
-            <Sheet>
-              <SheetTrigger asChild>
-                <Button variant="outline" size="lg" className="relative">
-                  <Icon name="ShoppingCart" size={20} />
-                  {cart.length > 0 && (
-                    <Badge className="absolute -top-2 -right-2 h-6 w-6 rounded-full flex items-center justify-center p-0">
-                      {cart.reduce((sum, item) => sum + item.quantity, 0)}
-                    </Badge>
-                  )}
-                </Button>
-              </SheetTrigger>
-              <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
+            <div className="flex gap-2">
+              <Button variant="outline" size="lg" onClick={exportToExcel}>
+                <Icon name="FileSpreadsheet" size={20} />
+              </Button>
+              
+              <Sheet>
+                <SheetTrigger asChild>
+                  <Button variant="outline" size="lg" className="relative">
+                    <Icon name="ShoppingCart" size={20} />
+                    {cart.length > 0 && (
+                      <Badge className="absolute -top-2 -right-2 h-6 w-6 rounded-full flex items-center justify-center p-0">
+                        {cart.reduce((sum, item) => sum + item.quantity, 0)}
+                      </Badge>
+                    )}
+                  </Button>
+                </SheetTrigger>
+                <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
                 <SheetHeader>
                   <SheetTitle>Корзина</SheetTitle>
                   <SheetDescription>
@@ -221,9 +287,15 @@ const Index = () => {
                         </div>
                       </div>
 
-                      <Button className="w-full" size="lg" onClick={() => toast.success('Заказ оформлен!')}>
-                        Оформить заказ
-                      </Button>
+                      <div className="flex gap-2">
+                        <Button variant="outline" className="flex-1" onClick={exportCartToExcel}>
+                          <Icon name="FileDown" size={16} className="mr-2" />
+                          Excel
+                        </Button>
+                        <Button className="flex-1" size="lg" onClick={() => toast.success('Заказ оформлен!')}>
+                          Оформить
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 ) : (
